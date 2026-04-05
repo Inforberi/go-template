@@ -5,6 +5,9 @@ docker-help:
 	@echo "make down        - Остановить и удалить контейнеры"
 	@echo "make clean-up    - Удалить контейнеры и очистить данные БД"
 	@echo ""
+	@echo "make db-up        - Запустить только Postgres и port-forwarder"
+	@echo "make db-down      - Остановить только Postgres и port-forwarder"
+	@echo ""
 
 up:
 	docker compose up -d
@@ -14,6 +17,12 @@ up-build:
 
 down:
 	docker compose down
+
+db-up:
+	docker compose up -d template-db port-forwarder
+
+db-down:
+	docker compose stop template-db port-forwarder
 
 clean-up:
 	@read -p "Очистить локальные данные БД? [y/N]: " ans; \
