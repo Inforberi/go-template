@@ -1,0 +1,12 @@
+version: '3'
+
+dotenv:
+    - .env.local
+    - .env
+
+tasks:
+    up:
+        desc: Запуск проекта
+        cmds:
+            - go mod tidy
+            - go run cmd/api/main.go

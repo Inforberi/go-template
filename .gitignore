@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build
+/bin/
+/dist/
+*.exe
+*.out
+
+# Go test / coverage
+*.test
+coverage.out
+coverage.html
+
+# Temporary files
+/tmp/
+*.tmp
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
