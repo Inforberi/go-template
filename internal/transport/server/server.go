@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Inforberi/go-template/internal/config"
+	"github.com/Inforberi/go-template/internal/infra/config"
 	"go.uber.org/zap"
 )
 

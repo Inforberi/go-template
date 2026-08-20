@@ -1,12 +1,92 @@
 version: '3'
 
-dotenv:
-    - .env.local
-    - .env
+vars:
+    DEV_COMPOSE: docker compose --project-directory . --env-file .env -f deploy/compose.dev.yml
+    PROD_COMPOSE: docker compose --project-directory . --env-file .env.prod -f deploy/compose.prod.yml
 
 tasks:
-    up:
-        desc: Запуск проекта
+    # Development
+    dev:up:
+        desc: Start development environment
         cmds:
-            - go mod tidy
-            - go run cmd/api/main.go
+            - '{{.DEV_COMPOSE}} up -d --wait postgres'
+            - '{{.DEV_COMPOSE}} run --rm migrate up'
+            - '{{.DEV_COMPOSE}} up -d --build --wait api'
+
+    dev:down:
+        desc: Stop development environment
+        cmds:
+            - '{{.DEV_COMPOSE}} down'
+
+    dev:logs:
+        desc: Follow development API logs
+        cmds:
+            - '{{.DEV_COMPOSE}} logs -f --tail=200 api'
+
+    dev:ps:
+        desc: Show development containers
+        cmds:
+            - '{{.DEV_COMPOSE}} ps'
+
+    # Migrations
+    migrate:create:
+        desc: Create a new SQL migration
+        requires:
+            vars:
+                - NAME
+        cmds:
+            - '{{.DEV_COMPOSE}} run --rm --no-deps --entrypoint migrate migrate create -ext sql -dir /migrations -seq {{.NAME}}'
+
+    migrate:up:
+        desc: Apply all pending migrations
+        cmds:
+            - '{{.DEV_COMPOSE}} up -d --wait postgres'
+            - '{{.DEV_COMPOSE}} run --rm migrate up'
+
+    migrate:down:
+        desc: Roll back one migration
+        cmds:
+            - '{{.DEV_COMPOSE}} up -d --wait postgres'
+            - '{{.DEV_COMPOSE}} run --rm migrate down 1'
+
+    migrate:version:
+        desc: Show current migration version
+        cmds:
+            - '{{.DEV_COMPOSE}} up -d --wait postgres'
+            - '{{.DEV_COMPOSE}} run --rm migrate version'
+
+    # Go
+    go:fmt:
+        desc: Format Go source code
+        cmds:
+            - go fmt ./...
+
+    go:vet:
+        desc: Run Go static analysis
+        cmds:
+            - go vet ./...
+
+    go:build:
+        desc: Build API locally
+        cmds:
+            - mkdir -p bin
+            - go build -mod=readonly -trimpath -o ./bin/api ./cmd/api
+
+    # Production
+    prod:deploy:
+        desc: Deploy production application
+        cmds:
+            - '{{.PROD_COMPOSE}} pull api migrate'
+            - '{{.PROD_COMPOSE}} up -d --wait postgres'
+            - '{{.PROD_COMPOSE}} run --rm migrate up'
+            - '{{.PROD_COMPOSE}} up -d --wait api'
+
+    prod:logs:
+        desc: Follow production API logs
+        cmds:
+            - '{{.PROD_COMPOSE}} logs -f --tail=200 api'
+
+    prod:ps:
+        desc: Show production containers
+        cmds:
+            - '{{.PROD_COMPOSE}} ps'

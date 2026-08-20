@@ -1,0 +1,36 @@
+ARG GO_IMAGE=golang:1.26-bookworm
+
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
+
+WORKDIR /src
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG SERVICE=api
+
+ENV CGO_ENABLED=0
+
+COPY go.mod go.sum ./
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY . .
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build \
+        -mod=readonly \
+        -trimpath \
+        -ldflags="-s -w" \
+        -o /out/service \
+        ./cmd/${SERVICE}
+
+FROM gcr.io/distroless/static-debian13:nonroot
+
+WORKDIR /app
+
+COPY --from=build /out/service /app/service
+
+ENTRYPOINT ["/app/service"]

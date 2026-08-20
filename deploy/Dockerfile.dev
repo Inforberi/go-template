@@ -1,0 +1,9 @@
+ARG GO_IMAGE=golang:1.26-bookworm
+
+FROM ${GO_IMAGE}
+
+WORKDIR /workspace
+
+ENV CGO_ENABLED=0
+ENV GOMODCACHE=/go/pkg/mod
+ENV GOCACHE=/root/.cache/go-build

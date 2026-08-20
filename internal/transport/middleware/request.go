@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/Inforberi/go-template/internal/logger"
+	"github.com/Inforberi/go-template/internal/infra/logger"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 

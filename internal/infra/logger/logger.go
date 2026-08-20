@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Inforberi/go-template/internal/config"
+	"github.com/Inforberi/go-template/internal/infra/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

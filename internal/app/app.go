@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Inforberi/go-template/internal/config"
-	"github.com/Inforberi/go-template/internal/logger"
-	"github.com/Inforberi/go-template/internal/router"
-	"github.com/Inforberi/go-template/internal/server"
+	"github.com/Inforberi/go-template/internal/infra/config"
+	"github.com/Inforberi/go-template/internal/infra/logger"
+	"github.com/Inforberi/go-template/internal/transport/router"
+	"github.com/Inforberi/go-template/internal/transport/server"
 )
 
 func New() error {
