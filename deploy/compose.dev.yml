@@ -1,69 +1,73 @@
 name: ${APP_NAME:-go-template}
 
 services:
-    # postgres:
-    #     image: postgres:17
-    #     environment:
-    #         POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
-    #         POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-    #         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    postgres:
+        image: postgres:18.4-bookworm
 
-    #     ports:
-    #         - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+            POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
 
-    #     volumes:
-    #         - postgres-data:/var/lib/postgresql/data
-
-    #     healthcheck:
-    #         test:
-    #             ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
-    #         interval: 5s
-    #         timeout: 3s
-    #         retries: 10
-
-    # migrate:
-    #     image: migrate/migrate:v4.19.1
-    #     volumes:
-    #         - ../migrations:/migrations:ro
-    #     command:
-    #         [
-    #             '-path=/migrations',
-    #             '-database=${DATABASE_URL:?DATABASE_URL is required}',
-    #             'up',
-    #         ]
-    #     depends_on:
-    #         postgres:
-    #             condition: service_healthy
-    api:
-        image: go-template-dev:1.26
-        build:
-            context: ..
-            dockerfile: deploy/Dockerfile.dev
-        env_file:
-            - ../.env
-        working_dir: /workspace
-        command:
-            - sh
-            - -ec
-            - |
-                go build -mod=readonly -trimpath -o /tmp/service ./cmd/api
-                exec /tmp/service
         ports:
-            - '${PORT:?PORT is required}:${PORT}'
+            - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+
         volumes:
-            - ..:/workspace
-            - go-mod-cache:/go/pkg/mod
-            - go-build-cache:/root/.cache/go-build
+            - postgres-data:/var/lib/postgresql
+
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+
+    migrate:
+        image: migrate/migrate:v4.19.1
+
+        volumes:
+            - ./migrations:/migrations
+
+        entrypoint:
+            - migrate
+            - -path=/migrations
+            - -database=${DATABASE_URL:?DATABASE_URL is required}
+
+        command: ['up']
+
         depends_on:
             postgres:
                 condition: service_healthy
-            migrate:
-                condition: service_completed_successfully
+
+    api:
+        build:
+            context: .
+            dockerfile: deploy/Dockerfile.dev
+
+        env_file:
+            - .env
+
+        working_dir: /workspace
+
+        volumes:
+            - .:/workspace
+            - go-mod-cache:/go/pkg/mod
+            - go-build-cache:/root/.cache/go-build
+
+        ports:
+            - '${PORT:?PORT is required}:${PORT}'
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+
         stop_grace_period: 20s
 
 volumes:
     postgres-data:
+
     go-mod-cache:
         name: go-mod-cache
+
     go-build-cache:
         name: go-build-cache

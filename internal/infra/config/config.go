@@ -18,14 +18,14 @@ type App struct {
 }
 
 type Logger struct {
-	Level string `env:"LOG_LEVEL" default:"info"`
+	Level string `env:"LOG_LEVEL" env-default:"info"`
 }
 
 func New() (*Config, error) {
 	var cfg Config
 
-	if err := cleanenv.ReadConfig(".env", &cfg); err != nil {
-		return nil, fmt.Errorf("fail to read config: %w", err)
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	return &cfg, nil

@@ -42,7 +42,7 @@ func New(cfg *config.Config) (*zap.Logger, error) {
 
 	zapCfg.InitialFields = map[string]any{
 		"service": cfg.ServiceName,
-		"env":     cfg.App,
+		"env":     cfg.App.App,
 	}
 
 	log, err := zapCfg.Build()

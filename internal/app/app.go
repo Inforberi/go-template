@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,13 +22,13 @@ func New() error {
 	// config
 	cfg, err := config.New()
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	// logger
 	log, err := logger.New(cfg)
 	if err != nil {
-		return fmt.Errorf("Logger init: %w", err)
+		return fmt.Errorf("logger init: %w", err)
 	}
 
 	// router

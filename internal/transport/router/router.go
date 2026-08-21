@@ -3,7 +3,7 @@ package router
 import (
 	"net/http"
 
-	appmiddleware "github.com/Inforberi/go-template/internal/middleware"
+	appmiddleware "github.com/Inforberi/go-template/internal/transport/middleware"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
@@ -17,7 +17,7 @@ func New(log *zap.Logger) *chi.Mux {
 	r.Use(chimiddleware.Recoverer)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("pong"))
+		w.Write([]byte("pongg"))
 	})
 
 	return r

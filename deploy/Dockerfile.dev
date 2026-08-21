@@ -1,9 +1,15 @@
-ARG GO_IMAGE=golang:1.26-bookworm
+ARG GO_IMAGE=golang:1.26.6-bookworm
 
 FROM ${GO_IMAGE}
 
+ARG AIR_VERSION=v1.65.3
+
 WORKDIR /workspace
 
-ENV CGO_ENABLED=0
-ENV GOMODCACHE=/go/pkg/mod
-ENV GOCACHE=/root/.cache/go-build
+ENV GOTOOLCHAIN=local \
+    GOMODCACHE=/go/pkg/mod \
+    GOCACHE=/root/.cache/go-build
+
+RUN go install github.com/air-verse/air@${AIR_VERSION}
+
+CMD ["air", "-c", ".air.toml"]

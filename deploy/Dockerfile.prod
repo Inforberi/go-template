@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.26-bookworm
+ARG GO_IMAGE=golang:1.26.6-bookworm
 
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
 
@@ -8,7 +8,8 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG SERVICE=api
 
-ENV CGO_ENABLED=0
+ENV CGO_ENABLED=0 \
+    GOTOOLCHAIN=local
 
 COPY go.mod go.sum ./
 

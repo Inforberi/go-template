@@ -10,7 +10,12 @@ tasks:
         desc: Start development environment
         cmds:
             - '{{.DEV_COMPOSE}} up -d --wait postgres'
-            - '{{.DEV_COMPOSE}} run --rm migrate up'
+            - |
+                if ls migrations/*.up.sql >/dev/null 2>&1; then
+                    {{.DEV_COMPOSE}} run --rm migrate
+                else
+                    echo "No migrations found, skipping"
+                fi
             - '{{.DEV_COMPOSE}} up -d --build --wait api'
 
     dev:down:
@@ -76,10 +81,20 @@ tasks:
     prod:deploy:
         desc: Deploy production application
         cmds:
-            - '{{.PROD_COMPOSE}} pull api migrate'
+            - '{{.PROD_COMPOSE}} pull postgres migrate api'
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
-            - '{{.PROD_COMPOSE}} run --rm migrate up'
+            - |
+                if ls migrations/*.up.sql >/dev/null 2>&1; then
+                    {{.PROD_COMPOSE}} run --rm migrate
+                else
+                    echo "No migrations found, skipping"
+                fi
             - '{{.PROD_COMPOSE}} up -d --wait api'
+
+    prod:down:
+        desc: Stop production environment
+        cmds:
+            - '{{.PROD_COMPOSE}} down'
 
     prod:logs:
         desc: Follow production API logs
