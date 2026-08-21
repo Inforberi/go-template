@@ -3,6 +3,7 @@ version: '3'
 vars:
     DEV_COMPOSE: docker compose --project-directory . --env-file .env -f deploy/compose.dev.yml
     PROD_COMPOSE: docker compose --project-directory . --env-file .env.prod -f deploy/compose.prod.yml
+    LOGS_COMPOSE: docker compose --project-directory . -f deploy/compose.logs.yml
 
 tasks:
     # Development
@@ -105,3 +106,25 @@ tasks:
         desc: Show production containers
         cmds:
             - '{{.PROD_COMPOSE}} ps'
+
+    # Docker logs UI
+    logs:up:
+        desc: Start the local-only Docker logs UI
+        cmds:
+            - '{{.LOGS_COMPOSE}} pull'
+            - '{{.LOGS_COMPOSE}} up -d --wait'
+
+    logs:down:
+        desc: Stop the Docker logs UI without removing its data
+        cmds:
+            - '{{.LOGS_COMPOSE}} down'
+
+    logs:ps:
+        desc: Show Docker logs UI containers
+        cmds:
+            - '{{.LOGS_COMPOSE}} ps'
+
+    logs:logs:
+        desc: Follow Docker logs UI service logs
+        cmds:
+            - '{{.LOGS_COMPOSE}} logs -f docker-socket-proxy dozzle'
