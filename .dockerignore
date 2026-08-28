@@ -5,6 +5,7 @@ bin
 dist
 tmp
 backups
+data
 coverage.out
 coverage.html
 *.test

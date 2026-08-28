@@ -59,7 +59,7 @@ Swagger UI доступен на `http://localhost:${PORT}/swagger/index.html` �
 
 ## Ежедневная разработка
 
-`task dev:up` запускает PostgreSQL, применяет существующие миграции и запускает API через Air. После изменения Go-файлов Air пересобирает и перезапускает приложение.
+`task dev:up` запускает PostgreSQL, применяет существующие миграции и запускает API через Air. После изменения Go-файлов Air пересобирает и перезапускает приложение. По умолчанию данные development БД лежат в `data/postgres-dev/` и не попадают в Git.
 
 | Задача | Команда |
 | --- | --- |
@@ -119,6 +119,7 @@ cp .env.prod.example .env.prod
 В `.env.prod` обязательно задайте:
 
 - `POSTGRES_PASSWORD` — уникальный пароль;
+- `POSTGRES_HOST_DIR` — каталог с данными PostgreSQL относительно корня проекта;
 - `DATABASE_URL` — URL с теми же реквизитами PostgreSQL.
 - `SWAGGER_USERNAME` и `SWAGGER_PASSWORD` — credentials Swagger UI;
 - `BACKUP_HOST_DIR` — каталог backup на сервере без shell-подстановок; пользователь deployment должен иметь право его создать и изменять.
@@ -131,7 +132,7 @@ task prod:ps
 task prod:logs
 ```
 
-Команда создаёт backup-каталог с правами `0700`, ожидает healthy PostgreSQL, применяет миграции и запускает API вместе с backup-sidecar. `task prod:down` останавливает приложение, но сохраняет PostgreSQL volume и backup-файлы.
+Команда создаёт backup-каталог с правами `0700`, ожидает healthy PostgreSQL, применяет миграции и запускает API вместе с backup-sidecar. Docker Compose автоматически создаёт `${POSTGRES_HOST_DIR}` при первом запуске. Данные БД лежат в этом каталоге; `task prod:down` и `docker compose down -v` их не удаляют. Для удаления БД нужно явно удалить этот каталог.
 
 > API публикует `${PORT}` на хосте. Ограничьте внешний доступ firewall или reverse proxy в соответствии с инфраструктурой.
 
@@ -168,7 +169,7 @@ Restore под общим lock проверяет SHA256 и TOC архива, о
 
 `POSTGRES_USER` считается владельцем БД. ACL и ownership из архива намеренно не восстанавливаются. При разделении ролей на owner/runtime user добавьте отдельный bootstrap ролей и grants.
 
-Локальный backup не является disaster recovery: потеря диска или VM уничтожит PostgreSQL volume и `${BACKUP_HOST_DIR}`. Для критичных данных добавьте off-site storage либо base backup и WAL-архивацию с PITR, а также регулярно выполняйте restore drill на отдельной БД.
+Локальный backup не является disaster recovery: потеря диска или VM уничтожит `${POSTGRES_HOST_DIR}` и `${BACKUP_HOST_DIR}`. Для критичных данных добавьте off-site storage либо base backup и WAL-архивацию с PITR, а также регулярно выполняйте restore drill на отдельной БД.
 
 ## Docker-логи через Dozzle
 
