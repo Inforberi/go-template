@@ -127,7 +127,8 @@ tasks:
         desc: Deploy production application
         cmds:
             - ./deploy/scripts/postgres-maintenance.sh prepare
-            - '{{.PROD_COMPOSE}} pull postgres migrate backup api'
+            - '{{.PROD_COMPOSE}} pull postgres migrate backup'
+            - '{{.PROD_COMPOSE}} build api'
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
             - |
                 if ls migrations/*.up.sql >/dev/null 2>&1; then

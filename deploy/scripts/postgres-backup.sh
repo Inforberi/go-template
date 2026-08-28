@@ -125,13 +125,20 @@ apply_retention_unlocked() {
 create_backup_unlocked() {
     local prefix="$1"
     local run_retention="$2"
-    local timestamp archive dump_path checksum_path dump_part checksum_part checksum
+    local timestamp archive dump_path checksum_path dump_part checksum_part checksum sequence=0 suffix
 
     [[ "$prefix" =~ ^[a-z][a-z0-9_-]*$ ]] || fail "invalid backup prefix: $prefix"
     [[ "$run_retention" == "true" || "$run_retention" == "false" ]] || fail "invalid retention flag: $run_retention"
 
-    timestamp="$(date -u +%Y%m%dT%H%M%S.%NZ)"
+    timestamp="$(date -u +%Y-%m-%d_%H-%M-%SZ)"
     archive="${prefix}_${timestamp}.dump"
+
+    while [[ -e "${BACKUP_DIR}/${archive}" || -e "${BACKUP_DIR}/${archive}.sha256" || -e "${BACKUP_DIR}/${archive}.part" || -e "${BACKUP_DIR}/${archive}.sha256.part" ]]; do
+        ((sequence += 1))
+        printf -v suffix '_%02d' "$sequence"
+        archive="${prefix}_${timestamp}${suffix}.dump"
+    done
+
     dump_path="${BACKUP_DIR}/${archive}"
     checksum_path="${dump_path}.sha256"
     dump_part="${dump_path}.part"
@@ -211,15 +218,26 @@ manual_cycle_unlocked() {
 }
 
 list_backups() {
-    local dump_path size
+    local archive created_at dump_path mtime size type
 
+    printf '%-20s %-12s %-14s %-10s %s\n' 'CREATED (UTC)' 'TYPE' 'SIZE' 'SHA256' 'FILE'
     shopt -s nullglob
-    for dump_path in "$BACKUP_DIR"/*.dump; do
+
+    while IFS=$'\t' read -r mtime dump_path; do
         if is_valid_pair "$dump_path"; then
+            archive="$(basename "$dump_path")"
+            created_at="$(date -u -d "@${mtime%%.*}" '+%Y-%m-%d %H:%M:%SZ')"
             size="$(stat -c %s "$dump_path")"
-            printf '%s\t%s bytes\tsha256:ok\n' "$(basename "$dump_path")" "$size"
+
+            case "$archive" in
+                backup_*) type='backup' ;;
+                pre_restore_*) type='pre_restore' ;;
+                *) type='legacy' ;;
+            esac
+
+            printf '%-20s %-12s %-14s %-10s %s\n' "$created_at" "$type" "${size} bytes" 'ok' "$archive"
         fi
-    done
+    done < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -printf '%T@\t%p\n' | sort -rn)
 }
 
 require_restore_lock() {

@@ -76,7 +76,9 @@ services:
                 max-file: '5'
 
     api:
-        image: ${APP_IMAGE:?APP_IMAGE is required}
+        build:
+            context: .
+            dockerfile: deploy/Dockerfile.prod
         env_file:
             - .env.prod
         ports:

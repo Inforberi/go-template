@@ -1,6 +1,6 @@
 # go-template
 
-Стартовый шаблон HTTP API на Go с PostgreSQL, SQL-миграциями и Docker Compose. Локальная разработка работает через Air, production — из готового образа registry.
+Стартовый шаблон HTTP API на Go с PostgreSQL, SQL-миграциями и Docker Compose. Локальная разработка работает через Air, production собирается из текущего checkout на сервере.
 
 ## Возможности
 
@@ -110,7 +110,7 @@ task migrate:down
 
 ## Production
 
-На сервере должны быть Docker Engine, Compose plugin, Task и доступ к registry с образом API.
+На сервере должны быть Docker Engine, Compose plugin, Task и исходный код проекта.
 
 ```bash
 cp .env.prod.example .env.prod
@@ -118,13 +118,12 @@ cp .env.prod.example .env.prod
 
 В `.env.prod` обязательно задайте:
 
-- `APP_IMAGE` — тег опубликованного образа API;
 - `POSTGRES_PASSWORD` — уникальный пароль;
 - `DATABASE_URL` — URL с теми же реквизитами PostgreSQL.
 - `SWAGGER_USERNAME` и `SWAGGER_PASSWORD` — credentials Swagger UI;
 - `BACKUP_HOST_DIR` — каталог backup на сервере без shell-подстановок; пользователь deployment должен иметь право его создать и изменять.
 
-Для закрытого registry выполните `docker login`, затем запустите deployment:
+`task prod:deploy` соберёт production-образ API из текущего checkout, затем запустит сервисы:
 
 ```bash
 task prod:deploy
@@ -141,9 +140,11 @@ task prod:logs
 Backup-sidecar создаёт custom archive `pg_dump` сразу при первом запуске, затем с интервалом `BACKUP_INTERVAL`. Повторный deploy не создаёт новый архив, если последний корректный backup ещё свежий. Хранятся последние `BACKUP_RETENTION_COUNT` пар:
 
 ```text
-backup_20260828T120000.000000000Z.dump
-backup_20260828T120000.000000000Z.dump.sha256
+backup_2026-08-28_12-00-00Z.dump
+backup_2026-08-28_12-00-00Z.dump.sha256
 ```
+
+`.dump` содержит данные БД, а `.dump.sha256` — контрольную сумму: для restore нужны оба файла. При совпадении времени добавляется счётчик, например `_01`.
 
 Доступные команды:
 
@@ -152,8 +153,15 @@ task backup:create
 task backup:list
 task backup:logs
 task backup:restore \
-  FILE=backup_20260828T120000.000000000Z.dump \
+  FILE=backup_2026-08-28_12-00-00Z.dump \
   CONFIRM=prod:app
+```
+
+Пример `task backup:list`:
+
+```text
+CREATED (UTC)        TYPE         SIZE           SHA256     FILE
+2026-08-28 12:00:00Z backup       12 345 bytes   ok         backup_2026-08-28_12-00-00Z.dump
 ```
 
 Restore под общим lock проверяет SHA256 и TOC архива, останавливает writers, создаёт `pre_restore`, пересоздаёт БД и запускает ранее работавший API только после успешной проверки. `migrate` автоматически не запускается. При ошибке writers остаются остановленными.
