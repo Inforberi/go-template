@@ -5,7 +5,9 @@
 ## Возможности
 
 - Go `1.26.6`, Chi, Zap и конфигурация из environment variables;
-- PostgreSQL 18 и `golang-migrate`;
+- PostgreSQL 18.6 и `golang-migrate`;
+- Swagger UI из Go-аннотаций и строгая JSON-валидация HTTP DTO;
+- автоматические локальные PostgreSQL backup с SHA256 и защищённым restore;
 - hot reload в development;
 - минимальный production-образ: distroless, non-root, read-only filesystem;
 - отдельный Dozzle для просмотра Docker-логов через SSH tunnel.
@@ -21,6 +23,7 @@
 | Docker + Compose | [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) | [Docker Engine + Compose plugin](https://docs.docker.com/engine/install/) |
 | Task | `brew install go-task` | см. [официальную установку](https://taskfile.dev/docs/installation) |
 | Go `1.26.6` | для format, vet и build | не требуется для deployment |
+| `flock` | не требуется для development | пакет `util-linux`, обычно уже установлен |
 
 На Linux установите Task для текущего пользователя:
 
@@ -52,6 +55,8 @@ curl http://127.0.0.1:8080/ping
 
 `GET /ping` возвращает `pongg`. API доступен на `http://localhost:${PORT}`, PostgreSQL — только на `127.0.0.1:${POSTGRES_PORT}`.
 
+Swagger UI доступен на `http://localhost:${PORT}/swagger/index.html` и защищён значениями `SWAGGER_USERNAME` и `SWAGGER_PASSWORD`. В production Basic Auth должен использоваться только через HTTPS.
+
 ## Ежедневная разработка
 
 `task dev:up` запускает PostgreSQL, применяет существующие миграции и запускает API через Air. После изменения Go-файлов Air пересобирает и перезапускает приложение.
@@ -65,7 +70,32 @@ curl http://127.0.0.1:8080/ping
 | Форматирование | `task go:fmt` |
 | Статический анализ | `task go:vet` |
 | Локальная сборка в `bin/api` | `task go:build` |
+| Форматирование Swagger-аннотаций | `task swagger:fmt` |
+| Генерация Swagger-документации | `task swagger:generate` |
 | Тесты | `go test ./...` |
+
+После изменения Swagger-аннотаций выполните `task swagger:generate` и закоммитьте обновлённый каталог `docs/`.
+
+### HTTP DTO и валидация
+
+`httpx.DecodeAndValidateJSON` принимает `application/json` с параметрами, ограничивает тело 1 MiB, запрещает неизвестные поля и проверяет `validate`-теги.
+
+```go
+type CreateRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+func create(w http.ResponseWriter, r *http.Request) {
+	var request CreateRequest
+	if !httpx.DecodeAndValidateJSON(w, r, &request) {
+		return
+	}
+
+	// Обработка валидного request.
+}
+```
+
+Ошибки тела возвращаются с HTTP-кодами `400`, `413` или `415`; ошибки DTO-валидации — `422` с `details` без исходных значений полей.
 
 ### Миграции
 
@@ -91,6 +121,8 @@ cp .env.prod.example .env.prod
 - `APP_IMAGE` — тег опубликованного образа API;
 - `POSTGRES_PASSWORD` — уникальный пароль;
 - `DATABASE_URL` — URL с теми же реквизитами PostgreSQL.
+- `SWAGGER_USERNAME` и `SWAGGER_PASSWORD` — credentials Swagger UI;
+- `BACKUP_HOST_DIR` — каталог backup на сервере без shell-подстановок; пользователь deployment должен иметь право его создать и изменять.
 
 Для закрытого registry выполните `docker login`, затем запустите deployment:
 
@@ -100,9 +132,35 @@ task prod:ps
 task prod:logs
 ```
 
-Команда ожидает healthy PostgreSQL, применяет миграции при их наличии и запускает API. `task prod:down` останавливает приложение, но сохраняет PostgreSQL volume.
+Команда создаёт backup-каталог с правами `0700`, ожидает healthy PostgreSQL, применяет миграции и запускает API вместе с backup-sidecar. `task prod:down` останавливает приложение, но сохраняет PostgreSQL volume и backup-файлы.
 
 > API публикует `${PORT}` на хосте. Ограничьте внешний доступ firewall или reverse proxy в соответствии с инфраструктурой.
+
+## PostgreSQL backup и restore
+
+Backup-sidecar создаёт custom archive `pg_dump` сразу при первом запуске, затем с интервалом `BACKUP_INTERVAL`. Повторный deploy не создаёт новый архив, если последний корректный backup ещё свежий. Хранятся последние `BACKUP_RETENTION_COUNT` пар:
+
+```text
+backup_20260828T120000.000000000Z.dump
+backup_20260828T120000.000000000Z.dump.sha256
+```
+
+Доступные команды:
+
+```bash
+task backup:create
+task backup:list
+task backup:logs
+task backup:restore \
+  FILE=backup_20260828T120000.000000000Z.dump \
+  CONFIRM=prod:app
+```
+
+Restore под общим lock проверяет SHA256 и TOC архива, останавливает writers, создаёт `pre_restore`, пересоздаёт БД и запускает ранее работавший API только после успешной проверки. `migrate` автоматически не запускается. При ошибке writers остаются остановленными.
+
+`POSTGRES_USER` считается владельцем БД. ACL и ownership из архива намеренно не восстанавливаются. При разделении ролей на owner/runtime user добавьте отдельный bootstrap ролей и grants.
+
+Локальный backup не является disaster recovery: потеря диска или VM уничтожит PostgreSQL volume и `${BACKUP_HOST_DIR}`. Для критичных данных добавьте off-site storage либо base backup и WAL-архивацию с PITR, а также регулярно выполняйте restore drill на отдельной БД.
 
 ## Docker-логи через Dozzle
 
@@ -134,6 +192,7 @@ cmd/api/                  точка входа приложения
 internal/app/             инициализация зависимостей
 internal/infra/           конфигурация и логгер
 internal/transport/       HTTP server, router, middleware и helpers
+docs/                     сгенерированная Swagger 2.0 документация
 migrations/               SQL-миграции
 deploy/                   Dockerfile и Compose-конфигурации
 Taskfile.yml              все поддерживаемые команды проекта

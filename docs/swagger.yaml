@@ -1,0 +1,21 @@
+basePath: /
+info:
+  contact: {}
+  description: HTTP API generated from Go annotations.
+  title: Go Template API
+  version: "1.0"
+paths:
+  /ping:
+    get:
+      description: Returns pong when the HTTP API is running.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: pongg
+          schema:
+            type: string
+      summary: Check API availability
+      tags:
+      - system
+swagger: "2.0"

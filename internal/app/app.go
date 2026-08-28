@@ -32,7 +32,7 @@ func New() error {
 	}
 
 	// router
-	r := router.New(log)
+	r := router.New(cfg, log)
 
 	if err := server.Run(ctx, cfg, r, log); err != nil {
 		return fmt.Errorf("run server: %w", err)

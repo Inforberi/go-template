@@ -9,6 +9,7 @@ import (
 type Config struct {
 	App
 	Logger
+	Swagger
 }
 
 type App struct {
@@ -19,6 +20,11 @@ type App struct {
 
 type Logger struct {
 	Level string `env:"LOG_LEVEL" env-default:"info"`
+}
+
+type Swagger struct {
+	Username string `env:"SWAGGER_USERNAME" env-required:"true"`
+	Password string `env:"SWAGGER_PASSWORD" env-required:"true"`
 }
 
 func New() (*Config, error) {

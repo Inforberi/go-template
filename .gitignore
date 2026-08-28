@@ -17,6 +17,7 @@ coverage.html
 
 # Temporary files
 /tmp/
+/backups/
 *.tmp
 
 # IDE

@@ -78,11 +78,56 @@ tasks:
             - mkdir -p bin
             - go build -mod=readonly -trimpath -o ./bin/api ./cmd/api
 
+    # Swagger
+    swagger:fmt:
+        desc: Format Swagger annotations
+        cmds:
+            - go run github.com/swaggo/swag/cmd/swag@v1.16.6 fmt -g cmd/api/main.go
+
+    swagger:generate:
+        desc: Generate Swagger documentation
+        cmds:
+            - go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/api/main.go --parseInternal -o docs
+
+    # PostgreSQL backups
+    backup:create:
+        desc: Create a production PostgreSQL backup
+        cmds:
+            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - '{{.PROD_COMPOSE}} up -d --wait postgres'
+            - '{{.PROD_COMPOSE}} run --rm --no-deps backup create'
+
+    backup:list:
+        desc: List valid production PostgreSQL backups
+        cmds:
+            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - '{{.PROD_COMPOSE}} run --rm --no-deps backup list'
+
+    backup:logs:
+        desc: Follow production PostgreSQL backup logs
+        cmds:
+            - '{{.PROD_COMPOSE}} logs -f --tail=200 backup'
+
+    backup:restore:
+        desc: Restore production PostgreSQL from a backup
+        requires:
+            vars:
+                - FILE
+                - CONFIRM
+        env:
+            RESTORE_FILE: '{{.FILE}}'
+            RESTORE_CONFIRM: '{{.CONFIRM}}'
+        cmds:
+            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - '{{.PROD_COMPOSE}} up -d --wait postgres'
+            - ./deploy/scripts/postgres-maintenance.sh restore
+
     # Production
     prod:deploy:
         desc: Deploy production application
         cmds:
-            - '{{.PROD_COMPOSE}} pull postgres migrate api'
+            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - '{{.PROD_COMPOSE}} pull postgres migrate backup api'
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
             - |
                 if ls migrations/*.up.sql >/dev/null 2>&1; then
@@ -90,7 +135,7 @@ tasks:
                 else
                     echo "No migrations found, skipping"
                 fi
-            - '{{.PROD_COMPOSE}} up -d --wait api'
+            - '{{.PROD_COMPOSE}} up -d --wait api backup'
 
     prod:down:
         desc: Stop production environment
