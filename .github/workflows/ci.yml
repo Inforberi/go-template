@@ -1,0 +1,34 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+
+permissions:
+    contents: read
+
+jobs:
+    checks:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
+              with:
+                  go-version-file: go.mod
+                  cache-dependency-path: go.sum
+            - name: Check formatting
+              run: |
+                  files="$(gofmt -l cmd internal)"
+                  test -z "$files" || { echo "$files"; exit 1; }
+            - name: Run vet
+              run: go vet ./...
+            - name: Run tests
+              run: go test -race ./...
+            - name: Validate Compose and shell scripts
+              run: |
+                  APP_ENV_FILE=.env.example docker compose --project-directory . --env-file .env.example -f deploy/compose.dev.yml config --quiet
+                  APP_ENV_FILE=.env.prod.example docker compose --project-directory . --env-file .env.prod.example -f deploy/compose.prod.yml config --quiet
+                  docker compose --project-directory . -f deploy/compose.logs.yml config --quiet
+                  bash -n deploy/scripts/*.sh
+            - name: Build production image
+              run: docker build -f deploy/Dockerfile.prod -t go-template:ci .

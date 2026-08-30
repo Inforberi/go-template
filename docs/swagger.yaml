@@ -1,10 +1,44 @@
 basePath: /
+definitions:
+  router.healthResponse:
+    properties:
+      status:
+        type: string
+    type: object
 info:
   contact: {}
   description: HTTP API generated from Go annotations.
   title: Go Template API
   version: "1.0"
 paths:
+  /health/live:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/router.healthResponse'
+      summary: Check process liveness
+      tags:
+      - system
+  /health/ready:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/router.healthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/router.healthResponse'
+      summary: Check service readiness
+      tags:
+      - system
   /ping:
     get:
       description: Returns pong when the HTTP API is running.
@@ -12,7 +46,7 @@ paths:
       - text/plain
       responses:
         "200":
-          description: pongg
+          description: pong
           schema:
             type: string
       summary: Check API availability

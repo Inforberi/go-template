@@ -36,14 +36,14 @@ services:
             context: .
             dockerfile: deploy/Dockerfile.dev
         env_file:
-            - .env
+            - ${APP_ENV_FILE:-.env}
         working_dir: /workspace
         volumes:
             - .:/workspace
             - go-mod-cache:/go/pkg/mod
             - go-build-cache:/root/.cache/go-build
         ports:
-            - '${PORT:?PORT is required}:${PORT}'
+            - '127.0.0.1:${PORT:?PORT is required}:${PORT}'
         depends_on:
             postgres:
                 condition: service_healthy

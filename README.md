@@ -4,13 +4,15 @@
 
 ## Возможности
 
-- Go `1.26.6`, Chi, Zap и конфигурация из environment variables;
-- PostgreSQL 18.6 и `golang-migrate`;
+- Go `1.26.7`, Chi, Zap и конфигурация из environment variables;
+- PostgreSQL 18.6, `pgxpool` и `golang-migrate`;
 - Swagger UI из Go-аннотаций и строгая JSON-валидация HTTP DTO;
+- liveness и readiness с проверкой PostgreSQL;
 - автоматические локальные PostgreSQL backup с SHA256 и защищённым restore;
 - hot reload в development;
 - минимальный production-образ: distroless, non-root, read-only filesystem;
-- отдельный Dozzle для просмотра Docker-логов через SSH tunnel.
+- отдельный Dozzle для просмотра Docker-логов через SSH tunnel;
+- базовый GitHub Actions CI и опциональный управляемый SSH-deploy.
 
 ## Быстрый старт
 
@@ -22,7 +24,7 @@
 | --- | --- | --- |
 | Docker + Compose | [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) | [Docker Engine + Compose plugin](https://docs.docker.com/engine/install/) |
 | Task | `brew install go-task` | см. [официальную установку](https://taskfile.dev/docs/installation) |
-| Go `1.26.6` | для format, vet и build | не требуется для deployment |
+| Go `1.26.7` | для format, vet и build | не требуется для deployment |
 | `flock` | не требуется для development | пакет `util-linux`, обычно уже установлен |
 
 На Linux установите Task для текущего пользователя:
@@ -53,9 +55,25 @@ task dev:up
 curl http://127.0.0.1:8080/ping
 ```
 
-`GET /ping` возвращает `pongg`. API доступен на `http://localhost:${PORT}`, PostgreSQL — только на `127.0.0.1:${POSTGRES_PORT}`.
+`GET /ping` возвращает `pong`. API доступен на `http://localhost:${PORT}`, PostgreSQL development — только на `127.0.0.1:${POSTGRES_PORT}`.
 
-Swagger UI доступен на `http://localhost:${PORT}/swagger/index.html` и защищён значениями `SWAGGER_USERNAME` и `SWAGGER_PASSWORD`. В production Basic Auth должен использоваться только через HTTPS.
+Системные проверки:
+
+- `GET /health/live` подтверждает, что HTTP-процесс работает;
+- `GET /health/ready` проверяет PostgreSQL через pool и возвращает `503`, если БД недоступна.
+
+При `SWAGGER_ENABLED=true` Swagger UI доступен на `http://localhost:${PORT}/swagger/index.html` и защищён значениями `SWAGGER_USERNAME` и `SWAGGER_PASSWORD`. В production Swagger по умолчанию выключен.
+
+### Использование как шаблона
+
+Перед началом нового проекта замените `github.com/Inforberi/go-template` на новый module path во всех Go-файлах, затем обновите `module`:
+
+```bash
+go mod edit -module github.com/acme/orders
+go mod tidy
+```
+
+Также измените `APP_NAME`, `SERVICE_NAME`, Swagger title и заголовок README. Git remote настраивается отдельно.
 
 ## Ежедневная разработка
 
@@ -69,6 +87,7 @@ Swagger UI доступен на `http://localhost:${PORT}/swagger/index.html` �
 | Остановить окружение | `task dev:down` |
 | Форматирование | `task go:fmt` |
 | Статический анализ | `task go:vet` |
+| Все локальные проверки | `task check` |
 | Локальная сборка в `bin/api` | `task go:build` |
 | Форматирование Swagger-аннотаций | `task swagger:fmt` |
 | Генерация Swagger-документации | `task swagger:generate` |
@@ -120,8 +139,9 @@ cp .env.prod.example .env.prod
 
 - `POSTGRES_PASSWORD` — уникальный пароль;
 - `POSTGRES_HOST_DIR` — каталог с данными PostgreSQL относительно корня проекта;
-- `DATABASE_URL` — URL с теми же реквизитами PostgreSQL.
-- `SWAGGER_USERNAME` и `SWAGGER_PASSWORD` — credentials Swagger UI;
+- `DATABASE_URL` — URL с теми же реквизитами PostgreSQL;
+- `DATABASE_MAX_CONNS` — максимальный размер PostgreSQL pool;
+- при `SWAGGER_ENABLED=true` — `SWAGGER_USERNAME` и `SWAGGER_PASSWORD`;
 - `BACKUP_HOST_DIR` — каталог backup на сервере без shell-подстановок; пользователь deployment должен иметь право его создать и изменять.
 
 `task prod:deploy` соберёт production-образ API из текущего checkout, затем запустит сервисы:
@@ -132,9 +152,32 @@ task prod:ps
 task prod:logs
 ```
 
-Команда создаёт backup-каталог с правами `0700`, ожидает healthy PostgreSQL, применяет миграции и запускает API вместе с backup-sidecar. Docker Compose автоматически создаёт `${POSTGRES_HOST_DIR}` при первом запуске. Данные БД лежат в этом каталоге; `task prod:down` и `docker compose down -v` их не удаляют. Для удаления БД нужно явно удалить этот каталог.
+Команда создаёт backup-каталог с правами `0700`, собирает API, ожидает healthy PostgreSQL, ровно один раз применяет миграции и запускает API вместе с backup-sidecar. Docker Compose автоматически создаёт `${POSTGRES_HOST_DIR}` при первом запуске. Данные БД лежат в этом каталоге; `task prod:down` и `docker compose down -v` их не удаляют. Для удаления БД нужно явно удалить этот каталог.
 
-> API публикует `${PORT}` на хосте. Ограничьте внешний доступ firewall или reverse proxy в соответствии с инфраструктурой.
+Production API слушает только `127.0.0.1:${PORT}` и должен публиковаться через host reverse proxy с TLS. PostgreSQL не имеет host-порта; для доступа используйте `docker compose --env-file .env.prod -f deploy/compose.prod.yml exec postgres psql`.
+
+## CI и управляемый deploy
+
+Workflow `CI` на каждый push и pull request проверяет форматирование, `go vet`, race-тесты, Compose/shell-конфигурации и production Docker build.
+
+Локальный и серверный deployment всегда можно выполнить напрямую через `task prod:deploy`. Workflow `Deploy` добавляет два опциональных режима:
+
+- ручной запуск через **Actions → Deploy → Run workflow**;
+- automatic deployment успешного commit из `main`, только если Repository Variable `AUTO_DEPLOY` равна `true`.
+
+Для GitHub Environment `production` настройте:
+
+| Тип | Имя | Значение |
+| --- | --- | --- |
+| Secret | `DEPLOY_HOST` | адрес сервера |
+| Secret | `DEPLOY_USER` | SSH-пользователь |
+| Secret | `DEPLOY_SSH_KEY` | приватный SSH-ключ |
+| Secret | `DEPLOY_KNOWN_HOSTS` | проверенная строка `known_hosts` сервера |
+| Variable | `DEPLOY_PATH` | абсолютный путь к checkout на сервере |
+| Variable | `DEPLOY_PORT` | SSH-порт, по умолчанию `22` |
+| Variable | `AUTO_DEPLOY` | `true` для auto-deploy, иначе выключен |
+
+Workflow передаёт серверу SHA, успешно прошедший CI, проверяет чистоту checkout и совпадение `origin/main` с этим SHA, выполняет только fast-forward и запускает `task prod:deploy`. Если в `main` уже появился другой commit, deployment прекращается. Для дополнительного контроля включите required reviewers у Environment `production`.
 
 ## PostgreSQL backup и restore
 
@@ -165,7 +208,7 @@ CREATED (UTC)        TYPE         SIZE           SHA256     FILE
 2026-08-28 12:00:00Z backup       12 345 bytes   ok         backup_2026-08-28_12-00-00Z.dump
 ```
 
-Restore под общим lock проверяет SHA256 и TOC архива, останавливает writers, создаёт `pre_restore`, пересоздаёт БД и запускает ранее работавший API только после успешной проверки. `migrate` автоматически не запускается. При ошибке writers остаются остановленными.
+Restore под общим lock проверяет SHA256 и TOC архива, останавливает writers, создаёт `pre_restore`, пересоздаёт БД, применяет миграции текущего checkout и выполняет SQL healthcheck. Ранее работавший API запускается только после успешного завершения всей последовательности. При ошибке writers остаются остановленными.
 
 `POSTGRES_USER` считается владельцем БД. ACL и ownership из архива намеренно не восстанавливаются. При разделении ролей на owner/runtime user добавьте отдельный bootstrap ролей и grants.
 
@@ -199,7 +242,7 @@ ssh -N \
 ```text
 cmd/api/                  точка входа приложения
 internal/app/             инициализация зависимостей
-internal/infra/           конфигурация и логгер
+internal/infra/           конфигурация, логгер и PostgreSQL pool
 internal/transport/       HTTP server, router, middleware и helpers
 docs/                     сгенерированная Swagger 2.0 документация
 migrations/               SQL-миграции
@@ -210,3 +253,5 @@ Taskfile.yml              все поддерживаемые команды п�
 ```
 
 Новые HTTP-маршруты добавляйте в `internal/transport/router`. Конфигурация приложения читается из environment variables, которые Compose загружает из `.env` или `.env.prod`.
+
+Шаблон намеренно не включает прикладную аутентификацию/RBAC, CORS, rate limiting, metrics/tracing, очереди и Kubernetes: эти решения добавляются под требования конкретного проекта.

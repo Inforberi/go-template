@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -Eeuo pipefail
 
 readonly PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -76,6 +78,11 @@ run_backup_unlocked() {
 }
 
 run_migrations() {
+    if ! compgen -G "${PROJECT_ROOT}/migrations/*.up.sql" >/dev/null; then
+        printf 'No migrations found, skipping\n'
+        return
+    fi
+
     compose run \
         --rm \
         --no-deps \

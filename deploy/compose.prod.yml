@@ -80,15 +80,12 @@ services:
             context: .
             dockerfile: deploy/Dockerfile.prod
         env_file:
-            - .env.prod
+            - ${APP_ENV_FILE:-.env.prod}
         ports:
-            - '${PORT:?PORT is required}:${PORT}'
-        api:
+            - '127.0.0.1:${PORT:?PORT is required}:${PORT}'
         depends_on:
             postgres:
                 condition: service_healthy
-            migrate:
-                condition: service_completed_successfully
         restart: unless-stopped
         read_only: true
         tmpfs:

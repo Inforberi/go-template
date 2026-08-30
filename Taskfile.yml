@@ -67,16 +67,52 @@ tasks:
         cmds:
             - go fmt ./...
 
+    go:fmt:check:
+        desc: Check Go formatting
+        cmds:
+            - |
+                files="$(gofmt -l cmd internal)"
+                if [ -n "$files" ]; then
+                    echo "$files"
+                    exit 1
+                fi
+
     go:vet:
         desc: Run Go static analysis
         cmds:
             - go vet ./...
+
+    go:test:race:
+        desc: Run tests with the race detector
+        cmds:
+            - go test -race ./...
 
     go:build:
         desc: Build API locally
         cmds:
             - mkdir -p bin
             - go build -mod=readonly -trimpath -o ./bin/api ./cmd/api
+
+    compose:check:
+        desc: Validate Docker Compose configurations
+        cmds:
+            - APP_ENV_FILE=.env.example docker compose --project-directory . --env-file .env.example -f deploy/compose.dev.yml config --quiet
+            - APP_ENV_FILE=.env.prod.example docker compose --project-directory . --env-file .env.prod.example -f deploy/compose.prod.yml config --quiet
+            - docker compose --project-directory . -f deploy/compose.logs.yml config --quiet
+
+    shell:check:
+        desc: Check deployment shell syntax
+        cmds:
+            - bash -n deploy/scripts/*.sh
+
+    check:
+        desc: Run local CI checks
+        deps:
+            - go:fmt:check
+            - go:vet
+            - go:test:race
+            - compose:check
+            - shell:check
 
     # Swagger
     swagger:fmt:
@@ -93,14 +129,14 @@ tasks:
     backup:create:
         desc: Create a production PostgreSQL backup
         cmds:
-            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - ./deploy/scripts/postgres-restore.sh prepare
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
             - '{{.PROD_COMPOSE}} run --rm --no-deps backup create'
 
     backup:list:
         desc: List valid production PostgreSQL backups
         cmds:
-            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - ./deploy/scripts/postgres-restore.sh prepare
             - '{{.PROD_COMPOSE}} run --rm --no-deps backup list'
 
     backup:logs:
@@ -118,17 +154,17 @@ tasks:
             RESTORE_FILE: '{{.FILE}}'
             RESTORE_CONFIRM: '{{.CONFIRM}}'
         cmds:
-            - ./deploy/scripts/postgres-maintenance.sh prepare
+            - ./deploy/scripts/postgres-restore.sh prepare
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
-            - ./deploy/scripts/postgres-maintenance.sh restore
+            - ./deploy/scripts/postgres-restore.sh restore
 
     # Production
     prod:deploy:
         desc: Deploy production application
         cmds:
-            - ./deploy/scripts/postgres-maintenance.sh prepare
-            - '{{.PROD_COMPOSE}} pull postgres migrate backup'
+            - ./deploy/scripts/postgres-restore.sh prepare
             - '{{.PROD_COMPOSE}} build api'
+            - '{{.PROD_COMPOSE}} pull postgres migrate backup'
             - '{{.PROD_COMPOSE}} up -d --wait postgres'
             - |
                 if ls migrations/*.up.sql >/dev/null 2>&1; then

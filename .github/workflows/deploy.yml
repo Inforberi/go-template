@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+    workflow_dispatch:
+    workflow_run:
+        workflows: [CI]
+        types: [completed]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: production
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            (
+              github.event.workflow_run.event == 'push' &&
+              github.event.workflow_run.conclusion == 'success' &&
+              github.event.workflow_run.head_branch == 'main' &&
+              vars.AUTO_DEPLOY == 'true'
+            )
+        runs-on: ubuntu-latest
+        environment: production
+        env:
+            DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+            DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+            DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+            DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+            DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+            DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+            DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+        steps:
+            - name: Validate deployment settings
+              run: |
+                  test -n "$DEPLOY_HOST"
+                  test -n "$DEPLOY_USER"
+                  test -n "$DEPLOY_SSH_KEY"
+                  test -n "$DEPLOY_KNOWN_HOSTS"
+                  test -n "$DEPLOY_PATH"
+                  test -n "$DEPLOY_SHA"
+            - name: Configure SSH
+              run: |
+                  install -d -m 0700 ~/.ssh
+                  printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+                  chmod 0600 ~/.ssh/id_ed25519
+                  printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+                  chmod 0600 ~/.ssh/known_hosts
+            - name: Deploy tested commit
+              run: |
+                  printf -v remote_command 'bash -s -- %q %q' "$DEPLOY_PATH" "$DEPLOY_SHA"
+                  ssh -p "$DEPLOY_PORT" \
+                      -o BatchMode=yes \
+                      -o IdentitiesOnly=yes \
+                      "$DEPLOY_USER@$DEPLOY_HOST" \
+                      "$remote_command" <<'REMOTE'
+                  set -Eeuo pipefail
+
+                  readonly project_path="$1"
+                  readonly deploy_sha="$2"
+
+                  export PATH="$HOME/.local/bin:$PATH"
+                  command -v task >/dev/null
+
+                  cd "$project_path"
+
+                  [[ -z "$(git status --porcelain)" ]] || {
+                      echo "Deployment aborted: server worktree is dirty" >&2
+                      exit 1
+                  }
+
+                  git fetch origin main
+
+                  readonly origin_sha="$(git rev-parse origin/main)"
+                  [[ "$origin_sha" == "$deploy_sha" ]] || {
+                      echo "Deployment aborted: origin/main no longer matches tested commit" >&2
+                      echo "origin/main=$origin_sha tested=$deploy_sha" >&2
+                      exit 1
+                  }
+
+                  git checkout main
+                  git merge --ff-only "$deploy_sha"
+
+                  readonly deployed_sha="$(git rev-parse HEAD)"
+                  [[ "$deployed_sha" == "$deploy_sha" ]] || {
+                      echo "Deployment aborted: HEAD does not match tested commit" >&2
+                      exit 1
+                  }
+
+                  task prod:deploy
+                  REMOTE
