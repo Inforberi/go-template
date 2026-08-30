@@ -18,7 +18,7 @@ jobs:
                   cache-dependency-path: go.sum
             - name: Check formatting
               run: |
-                  files="$(gofmt -l cmd internal)"
+                  files="$(gofmt -l cmd internal pkg)"
                   test -z "$files" || { echo "$files"; exit 1; }
             - name: Run vet
               run: go vet ./...

@@ -71,7 +71,7 @@ tasks:
         desc: Check Go formatting
         cmds:
             - |
-                files="$(gofmt -l cmd internal)"
+                files="$(gofmt -l cmd internal pkg)"
                 if [ -n "$files" ]; then
                     echo "$files"
                     exit 1

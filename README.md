@@ -7,6 +7,7 @@
 - Go `1.26.7`, Chi, Zap и конфигурация из environment variables;
 - PostgreSQL 18.6, `pgxpool` и `golang-migrate`;
 - Swagger UI из Go-аннотаций и строгая JSON-валидация HTTP DTO;
+- общий HTTP/JSON-клиент для интеграций с внешними API;
 - liveness и readiness с проверкой PostgreSQL;
 - автоматические локальные PostgreSQL backup с SHA256 и защищённым restore;
 - hot reload в development;
@@ -115,6 +116,27 @@ func create(w http.ResponseWriter, r *http.Request) {
 ```
 
 Ошибки тела возвращаются с HTTP-кодами `400`, `413` или `415`; ошибки DTO-валидации — `422` с `details` без исходных значений полей.
+
+### HTTP-клиент для внешних API
+
+Пакет `pkg` содержит небольшой переиспользуемый клиент для исходящих HTTP-запросов. Он поддерживает базовый URL, общие заголовки, JSON body/response и методы `Get`, `Post`, `Put`, `Patch`, `Delete`. Если собственный `http.Client` не передан, используется timeout `15s`. Любой ответ вне диапазона `2xx` возвращается как ошибка.
+
+```go
+headers := make(http.Header)
+headers.Set("Authorization", "Bearer "+token)
+
+client, err := pkg.NewClient("https://api.example.com", headers, nil)
+if err != nil {
+	return err
+}
+
+var result Item
+if err := client.Get(ctx, "/v1/items/42", &result); err != nil {
+	return err
+}
+```
+
+Для нестандартного timeout, transport или тестового сервера передайте настроенный `*http.Client` третьим аргументом. Вызывающий код должен передавать `context.Context` с нужным deadline или отменой.
 
 ### Миграции
 
@@ -244,6 +266,7 @@ cmd/api/                  точка входа приложения
 internal/app/             инициализация зависимостей
 internal/infra/           конфигурация, логгер и PostgreSQL pool
 internal/transport/       HTTP server, router, middleware и helpers
+pkg/                      общий HTTP/JSON-клиент для внешних API
 docs/                     сгенерированная Swagger 2.0 документация
 migrations/               SQL-миграции
 deploy/                   Dockerfile и Compose-конфигурации
