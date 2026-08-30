@@ -1,5 +1,3 @@
-#!/bin/bash
-
 set -Eeuo pipefail
 
 umask 077
