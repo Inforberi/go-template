@@ -3,7 +3,6 @@ name: go-template-logs
 services:
     docker-socket-proxy:
         image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
-
         environment:
             CONTAINERS: '1'
             EVENTS: '1'
@@ -11,39 +10,29 @@ services:
             PING: '1'
             VERSION: '1'
             POST: '0'
-
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
-
         networks:
             - logs-internal
-
         restart: unless-stopped
 
     dozzle:
         image: amir20/dozzle:v10.7.3
-
         environment:
             DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
             DOZZLE_ENABLE_ACTIONS: 'false'
             DOZZLE_ENABLE_SHELL: 'false'
             DOZZLE_ENABLE_MCP: 'false'
-
         ports:
             - '127.0.0.1:9999:8080'
-
         volumes:
             - dozzle-data:/data
-
         depends_on:
             - docker-socket-proxy
-
         networks:
             - logs-internal
             - logs-ui
-
         restart: unless-stopped
-
         healthcheck:
             test: ['CMD', '/dozzle', 'healthcheck']
             interval: 10s
