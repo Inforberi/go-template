@@ -265,8 +265,8 @@ ssh -N \
 cmd/api/                  точка входа приложения
 internal/app/             инициализация зависимостей
 internal/infra/           конфигурация, логгер и PostgreSQL pool
-internal/transport/       HTTP server, router, middleware и helpers
 pkg/                      общий HTTP/JSON-клиент для внешних API
+internal/transport/http/  HTTP server, router, middleware и helpers
 docs/                     сгенерированная Swagger 2.0 документация
 migrations/               SQL-миграции
 deploy/                   Dockerfile и Compose-конфигурации
@@ -275,6 +275,13 @@ Taskfile.yml              все поддерживаемые команды п�
 .env.prod.example         production-конфигурация
 ```
 
-Новые HTTP-маршруты добавляйте в `internal/transport/router`. Конфигурация приложения читается из environment variables, которые Compose загружает из `.env` или `.env.prod`.
+Новые HTTP-маршруты добавляйте в `internal/transport/http/router`. Компоненты HTTP-транспорта разделены по пакетам:
+
+- `internal/transport/http/server` — запуск и graceful shutdown HTTP-сервера;
+- `internal/transport/http/router` — регистрация маршрутов и Swagger UI;
+- `internal/transport/http/middleware` — middleware приложения;
+- `internal/transport/http/httpx` — JSON-декодирование, валидация и HTTP-ответы.
+
+Конфигурация приложения читается из environment variables, которые Compose загружает из `.env` или `.env.prod`.
 
 Шаблон намеренно не включает прикладную аутентификацию/RBAC, CORS, rate limiting, metrics/tracing, очереди и Kubernetes: эти решения добавляются под требования конкретного проекта.

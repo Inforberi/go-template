@@ -10,8 +10,8 @@ import (
 	"github.com/Inforberi/go-template/internal/infra/config"
 	"github.com/Inforberi/go-template/internal/infra/logger"
 	"github.com/Inforberi/go-template/internal/infra/postgres"
-	"github.com/Inforberi/go-template/internal/transport/router"
-	"github.com/Inforberi/go-template/internal/transport/server"
+	"github.com/Inforberi/go-template/internal/transport/http/router"
+	"github.com/Inforberi/go-template/internal/transport/http/server"
 )
 
 func New() error {

@@ -7,8 +7,8 @@ import (
 
 	_ "github.com/Inforberi/go-template/docs"
 	"github.com/Inforberi/go-template/internal/infra/config"
-	"github.com/Inforberi/go-template/internal/transport/httpx"
-	appmiddleware "github.com/Inforberi/go-template/internal/transport/middleware"
+	"github.com/Inforberi/go-template/internal/transport/http/httpx"
+	appmiddleware "github.com/Inforberi/go-template/internal/transport/http/middleware"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
