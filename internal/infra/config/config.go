@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -51,6 +52,11 @@ func New() (*Config, error) {
 }
 
 func (cfg *Config) Validate() error {
+	port, err := strconv.Atoi(strings.TrimSpace(cfg.Port))
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("PORT must be an integer between 1 and 65535")
+	}
+
 	if strings.TrimSpace(cfg.Database.URL) == "" {
 		return errors.New("DATABASE_URL is required")
 	}

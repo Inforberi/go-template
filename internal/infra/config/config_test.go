@@ -6,30 +6,81 @@ import (
 )
 
 func TestValidate(t *testing.T) {
+	validConfig := func() Config {
+		return Config{
+			App:      App{Port: "8080"},
+			Database: Database{URL: "postgres://app:secret@postgres:5432/app", MaxConns: 10},
+		}
+	}
+
 	tests := []struct {
 		name      string
 		config    Config
 		wantError string
 	}{
 		{
-			name: "valid",
-			config: Config{
-				Database: Database{URL: "postgres://app:secret@postgres:5432/app", MaxConns: 10},
-			},
+			name:   "valid",
+			config: validConfig(),
+		},
+		{
+			name: "empty port",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Port = ""
+				return cfg
+			}(),
+			wantError: "PORT",
+		},
+		{
+			name: "non-numeric port",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Port = "http"
+				return cfg
+			}(),
+			wantError: "PORT",
+		},
+		{
+			name: "zero port",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Port = "0"
+				return cfg
+			}(),
+			wantError: "PORT",
+		},
+		{
+			name: "negative port",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Port = "-1"
+				return cfg
+			}(),
+			wantError: "PORT",
+		},
+		{
+			name: "port above maximum",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Port = "65536"
+				return cfg
+			}(),
+			wantError: "PORT",
 		},
 		{
 			name:      "database URL",
-			config:    Config{Database: Database{MaxConns: 10}},
+			config:    Config{App: App{Port: "8080"}, Database: Database{MaxConns: 10}},
 			wantError: "DATABASE_URL",
 		},
 		{
 			name:      "maximum connections",
-			config:    Config{Database: Database{URL: "postgres://postgres", MaxConns: 0}},
+			config:    Config{App: App{Port: "8080"}, Database: Database{URL: "postgres://postgres", MaxConns: 0}},
 			wantError: "DATABASE_MAX_CONNS",
 		},
 		{
 			name: "Swagger credentials",
 			config: Config{
+				App:      App{Port: "8080"},
 				Database: Database{URL: "postgres://postgres", MaxConns: 10},
 				Swagger:  Swagger{Enabled: true},
 			},

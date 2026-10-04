@@ -4,7 +4,7 @@
 
 ## Возможности
 
-- Go `1.26.7`, Chi, Zap и конфигурация из environment variables;
+- Go `1.27.1`, Chi, Zap и конфигурация из environment variables;
 - PostgreSQL 18.6, `pgxpool` и `golang-migrate`;
 - Swagger UI из Go-аннотаций и строгая JSON-валидация HTTP DTO;
 - общий HTTP/JSON-клиент для интеграций с внешними API;
@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | Docker + Compose | [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) | [Docker Engine + Compose plugin](https://docs.docker.com/engine/install/) |
 | Task | `brew install go-task` | см. [официальную установку](https://taskfile.dev/docs/installation) |
-| Go `1.26.7` | для format, vet и build | не требуется для deployment |
+| Go `1.27.1` | для format, vet и build | не требуется для deployment |
 | `flock` | не требуется для development | пакет `util-linux`, обычно уже установлен |
 
 На Linux установите Task для текущего пользователя:
@@ -178,6 +178,12 @@ task prod:logs
 
 Production API слушает только `127.0.0.1:${PORT}` и должен публиковаться через host reverse proxy с TLS. PostgreSQL не имеет host-порта; для доступа используйте `docker compose --env-file .env.prod -f deploy/compose.prod.yml exec postgres psql`.
 
+После запуска можно вручную проверить готовность API и подключение к PostgreSQL:
+
+```bash
+curl --fail --max-time 5 http://127.0.0.1:8080/health/ready
+```
+
 ## CI и управляемый deploy
 
 Workflow `CI` на каждый push и pull request проверяет форматирование, `go vet`, race-тесты, Compose/shell-конфигурации и production Docker build.
@@ -211,6 +217,8 @@ backup_2026-08-28_12-00-00Z.dump.sha256
 ```
 
 `.dump` содержит данные БД, а `.dump.sha256` — контрольную сумму: для restore нужны оба файла. При совпадении времени добавляется счётчик, например `_01`.
+
+По умолчанию архивы хранятся локально в `BACKUP_HOST_DIR=./backups`, создаются не чаще `BACKUP_INTERVAL=24h`, а retention оставляет `BACKUP_RETENTION_COUNT=7` корректных пар. Такой backup защищает от логических ошибок и повреждения БД, но не от потери самого сервера: для этого копируйте архивы на отдельное хранилище.
 
 Доступные команды:
 
